@@ -419,6 +419,22 @@
     font-family: 'DM Mono', monospace;
     font-size: 0.68rem;
   }
+
+  .clear-btn {
+    background: none;
+    border: 1px solid #ef4444;
+    color: #ef4444;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.6rem;
+    padding: 6px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: all 0.2s;
+    margin-left: auto;
+  }
+  .clear-btn:hover { background: #ef4444; color: #fff; }
 </style>
 </head>
 <body>
@@ -451,6 +467,7 @@
   <select class="filter-select" id="page-filter" onchange="loadStats()">
     <option value="">Todos los artículos</option>
   </select>
+  <button class="clear-btn" id="clear-btn" onclick="doClear()" style="display:none;">Eliminar historial</button>
   <span class="filter-label" style="margin-left:8px;">Rango:</span>
   <div class="range-btns">
     <button class="range-btn" data-range="hoy" onclick="setRange('hoy')">Hoy</button>
@@ -570,10 +587,13 @@
       <pre id="pixel-code">Cargando URL…</pre>
     </div>
     <div class="snippet-tip">
-      <strong>Instrucciones:</strong> Pega este enlace en cualquier bloque de Notion como imagen embebida (<code>/image</code> → Enlace → pegar URL).<br>
-      Cambia <code>mi-articulo</code> por un nombre único para cada artículo. Ejemplos:<br>
-      <code>?pagina=guia-seo</code> · <code>?pagina=tutorial-python</code> · <code>?pagina=landing-page</code><br>
-      Cada artículo debe tener un nombre diferente para separar las visitas en el dashboard.
+      <strong>Instrucciones:</strong><br>
+      1. Cambia <code>mi-articulo</code> por un nombre único: <code>?pagina=guia-seo</code> · <code>?pagina=tutorial-python</code><br>
+      2. En Notion, escribe <code>/image</code> → Enlace → pega la URL<br>
+      3. <strong>Pon el pixel al INICIO del artículo</strong> (justo después del título). Si lo pones al final, solo cuenta lectores que scrollean hasta abajo.<br>
+      4. Minimiza el bloque de imagen (es 1x1 px transparente, casi invisible).<br>
+      Cada artículo necesita un nombre diferente en <code>?pagina=</code> para separar las visitas en el dashboard.<br>
+      <em>Tip: puedes poner un segundo pixel al final (<code>?pagina=articulo-fin</code>) para medir cuántos lectores terminan el artículo.</em>
     </div>
   </section>
 
@@ -830,10 +850,39 @@ async function loadStats() {
     // Selector de artículos
     await loadPages();
 
+    // Mostrar botón "Eliminar historial" solo cuando hay un artículo seleccionado
+    document.getElementById('clear-btn').style.display = pagina ? 'block' : 'none';
+
     document.getElementById('last-update').textContent =
       'Actualizado: ' + new Date().toLocaleTimeString('es-PE');
   } catch(e) {
     document.getElementById('last-update').textContent = 'Error al cargar datos';
+  }
+}
+
+// ── Eliminar historial de un artículo ──
+async function doClear() {
+  const pagina = document.getElementById('page-filter').value;
+  if (!pagina) return;
+  const ok = confirm(`¿Eliminar TODO el historial de "${pagina}"?\n\nEsta acción no se puede deshacer.`);
+  if (!ok) return;
+  const ok2 = confirm(`¿Estás seguro? Se borrarán todas las visitas registradas de "${pagina}".`);
+  if (!ok2) return;
+  try {
+    const res = await fetch(`${BASE}/clear?pagina=${encodeURIComponent(pagina)}`, {
+      method: 'DELETE',
+      headers: authHeaders()
+    });
+    if (res.ok) {
+      const data = await res.json();
+      alert(`Eliminadas ${data.deleted} visitas de "${pagina}".`);
+      document.getElementById('page-filter').value = '';
+      loadStats();
+    } else {
+      alert('Error al eliminar historial');
+    }
+  } catch(e) {
+    alert('Error de conexión');
   }
 }
 </script>
