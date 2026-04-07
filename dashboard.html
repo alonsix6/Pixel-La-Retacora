@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Notion Tracker · Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --border: #1e1e1e;
+    --accent: #c8f135;
+    --accent2: #3b82f6;
+    --text: #e8e8e8;
+    --muted: #555;
+    --card: #131313;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 24px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.1rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  header span {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+  #last-update {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+
+  /* ── Layout ── */
+  main {
+    padding: 40px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  /* ── KPIs ── */
+  .kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 40px;
+  }
+  .kpi {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 28px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.6s ease;
+  }
+  .kpi.loaded::before { transform: scaleX(1); }
+  .kpi-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+  .kpi-value {
+    font-family: 'Syne', sans-serif;
+    font-size: 2.8rem;
+    font-weight: 800;
+    color: var(--accent);
+    line-height: 1;
+  }
+
+  /* ── Sección con título ── */
+  section { margin-bottom: 40px; }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .section-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .section-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── Grid 2 columnas ── */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  @media (max-width: 700px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  /* ── Bar charts ── */
+  .bar-list { display: flex; flex-direction: column; gap: 10px; }
+  .bar-item {
+    display: grid;
+    grid-template-columns: 130px 1fr 50px;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.8rem;
+  }
+  .bar-label {
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+  }
+  .bar-track {
+    background: var(--border);
+    border-radius: 2px;
+    height: 6px;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--accent);
+    width: 0;
+    transition: width 1s cubic-bezier(.25,.46,.45,.94);
+  }
+  .bar-count {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--muted);
+    text-align: right;
+  }
+
+  /* ── Dispositivos (donut-like) ── */
+  .device-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .device-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 20px 16px;
+    text-align: center;
+  }
+  .device-icon { font-size: 1.6rem; margin-bottom: 8px; }
+  .device-pct {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--accent2);
+  }
+  .device-name {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  /* ── Sparkline (visitas por día) ── */
+  .chart-wrap {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 24px;
+  }
+  #sparkline { width: 100%; height: 120px; }
+
+  /* ── Pixel snippet ── */
+  .snippet {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 20px 24px;
+    position: relative;
+  }
+  .snippet pre {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: #7ee787;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .copy-btn {
+    position: absolute;
+    top: 12px; right: 12px;
+    background: var(--border);
+    border: none;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    padding: 4px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .copy-btn:hover { background: var(--accent); color: #000; }
+
+  /* ── Loading ── */
+  .loading {
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    padding: 40px 0;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>◈ Notion Tracker</h1>
+  <span id="last-update">Cargando…</span>
+</header>
+
+<main>
+
+  <!-- KPIs -->
+  <div class="kpis">
+    <div class="kpi" id="kpi-total">
+      <div class="kpi-label">Visitas totales</div>
+      <div class="kpi-value" id="val-total">—</div>
+    </div>
+    <div class="kpi" id="kpi-hoy">
+      <div class="kpi-label">Visitas hoy</div>
+      <div class="kpi-value" id="val-hoy">—</div>
+    </div>
+  </div>
+
+  <!-- Gráfica por día -->
+  <section>
+    <div class="section-header">
+      <span class="section-title">Visitas por día (últimos 14 días)</span>
+      <div class="section-line"></div>
+    </div>
+    <div class="chart-wrap">
+      <svg id="sparkline" viewBox="0 0 600 120" preserveAspectRatio="none"></svg>
+    </div>
+  </section>
+
+  <!-- Países y Referrers -->
+  <div class="grid-2">
+    <section>
+      <div class="section-header">
+        <span class="section-title">Países</span>
+        <div class="section-line"></div>
+      </div>
+      <div class="bar-list" id="paises-list"><div class="loading">Cargando…</div></div>
+    </section>
+    <section>
+      <div class="section-header">
+        <span class="section-title">Origen (referrer)</span>
+        <div class="section-line"></div>
+      </div>
+      <div class="bar-list" id="referrers-list"><div class="loading">Cargando…</div></div>
+    </section>
+  </div>
+
+  <!-- Dispositivos -->
+  <section>
+    <div class="section-header">
+      <span class="section-title">Dispositivos</span>
+      <div class="section-line"></div>
+    </div>
+    <div class="device-grid" id="device-grid"><div class="loading">Cargando…</div></div>
+  </section>
+
+  <!-- Páginas -->
+  <section>
+    <div class="section-header">
+      <span class="section-title">Visitas por página</span>
+      <div class="section-line"></div>
+    </div>
+    <div class="bar-list" id="pages-list"><div class="loading">Cargando…</div></div>
+  </section>
+
+  <!-- Snippet -->
+  <section>
+    <div class="section-header">
+      <span class="section-title">Tu pixel de tracking</span>
+      <div class="section-line"></div>
+    </div>
+    <div class="snippet">
+      <button class="copy-btn" onclick="copyPixel()">Copiar</button>
+      <pre id="pixel-code">Cargando URL…</pre>
+    </div>
+    <p style="margin-top:12px; font-size:0.72rem; color:var(--muted);">
+      Pega este enlace de imagen en cualquier bloque de Notion como imagen embebida (<code>/image</code> → pegar URL).
+    </p>
+  </section>
+
+</main>
+
+<script>
+const BASE = window.location.origin;
+
+// ── Renderizar barras ──
+function renderBars(containerId, items, colorVar='--accent') {
+  const el = document.getElementById(containerId);
+  if (!items.length) { el.innerHTML = '<div class="loading">Sin datos aún</div>'; return; }
+  const max = Math.max(...items.map(i => i.n));
+  el.innerHTML = items.map(item => `
+    <div class="bar-item">
+      <span class="bar-label" title="${item.pais||item.referrer||item.dispositivo}">${item.pais||item.referrer||item.dispositivo||'—'}</span>
+      <div class="bar-track">
+        <div class="bar-fill" style="background:var(${colorVar})" data-w="${(item.n/max*100).toFixed(1)}%"></div>
+      </div>
+      <span class="bar-count">${item.n}</span>
+    </div>
+  `).join('');
+  requestAnimationFrame(() => {
+    el.querySelectorAll('.bar-fill').forEach(b => b.style.width = b.dataset.w);
+  });
+}
+
+// ── Sparkline ──
+function renderSparkline(data) {
+  const svg = document.getElementById('sparkline');
+  if (!data.length) return;
+  const sorted = [...data].reverse();
+  const vals = sorted.map(d => d.n);
+  const max = Math.max(...vals, 1);
+  const W = 600, H = 120, pad = 30;
+  const pts = vals.map((v, i) => {
+    const x = pad + i * ((W - pad*2) / (vals.length - 1 || 1));
+    const y = H - pad - (v / max) * (H - pad*2);
+    return `${x},${y}`;
+  });
+  const area = `M ${pts[0]} ` + pts.slice(1).map(p => `L ${p}`).join(' ')
+             + ` L ${pts[pts.length-1].split(',')[0]},${H-pad} L ${pts[0].split(',')[0]},${H-pad} Z`;
+  const line = `M ${pts[0]} ` + pts.slice(1).map(p => `L ${p}`).join(' ');
+
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#c8f135" stop-opacity="0.25"/>
+        <stop offset="100%" stop-color="#c8f135" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <path d="${area}" fill="url(#grad)"/>
+    <path d="${line}" fill="none" stroke="#c8f135" stroke-width="2"/>
+    ${sorted.map((d,i) => {
+      const x = pad + i * ((W - pad*2) / (vals.length - 1 || 1));
+      return `<text x="${x}" y="${H-6}" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#444">${d.dia.slice(5)}</text>`;
+    }).join('')}
+  `;
+}
+
+// ── Dispositivos ──
+const ICONS = { 'Móvil':'📱', 'Tablet':'📟', 'Escritorio':'🖥️' };
+function renderDevices(items, total) {
+  const el = document.getElementById('device-grid');
+  if (!items.length) { el.innerHTML = '<div class="loading">Sin datos aún</div>'; return; }
+  el.innerHTML = items.map(d => `
+    <div class="device-card">
+      <div class="device-icon">${ICONS[d.dispositivo]||'💻'}</div>
+      <div class="device-pct">${total ? Math.round(d.n/total*100) : 0}%</div>
+      <div class="device-name">${d.dispositivo}</div>
+    </div>
+  `).join('');
+}
+
+// ── Pixel snippet ──
+function updatePixelCode() {
+  const url = `${BASE}/pixel?pagina=mi-pagina`;
+  document.getElementById('pixel-code').textContent = url;
+}
+function copyPixel() {
+  const text = document.getElementById('pixel-code').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = '✓ Copiado';
+    setTimeout(() => btn.textContent = 'Copiar', 2000);
+  });
+}
+
+// ── Fetch stats ──
+async function loadStats() {
+  try {
+    const res = await fetch(`${BASE}/stats`);
+    const d = await res.json();
+
+    document.getElementById('val-total').textContent = d.total.toLocaleString();
+    document.getElementById('val-hoy').textContent = d.hoy.toLocaleString();
+
+    document.querySelectorAll('.kpi').forEach(k => {
+      setTimeout(() => k.classList.add('loaded'), 100);
+    });
+
+    renderBars('paises-list', d.paises.map(p => ({...p, pais: p.pais})));
+    renderBars('referrers-list', d.referrers.map(r => ({...r, pais: r.referrer})), '--accent2');
+    renderDevices(d.dispositivos, d.total);
+    renderSparkline(d.por_dia);
+
+    // Páginas
+    const pRes = await fetch(`${BASE}/pages`);
+    const pages = await pRes.json();
+    renderBars('pages-list', pages.map(p => ({...p, pais: p.pagina})), '--accent');
+
+    document.getElementById('last-update').textContent =
+      'Actualizado: ' + new Date().toLocaleTimeString('es-PE');
+  } catch(e) {
+    document.getElementById('last-update').textContent = 'Error al cargar datos';
+  }
+}
+
+updatePixelCode();
+loadStats();
+setInterval(loadStats, 30000); // refresca cada 30s
+</script>
+</body>
+</html>
