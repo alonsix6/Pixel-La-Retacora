@@ -27,6 +27,77 @@
     min-height: 100vh;
   }
 
+  /* ── Login ── */
+  #login-screen {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+  .login-box {
+    text-align: center;
+    max-width: 340px;
+    width: 100%;
+    padding: 0 20px;
+  }
+  .login-box h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.3rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+  .login-box p {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-bottom: 32px;
+  }
+  .login-input {
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    padding: 14px 16px;
+    border-radius: 4px;
+    text-align: center;
+    letter-spacing: 0.1em;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .login-input:focus { border-color: var(--accent); }
+  .login-input::placeholder { color: var(--muted); letter-spacing: 0.05em; }
+  .login-btn {
+    width: 100%;
+    margin-top: 16px;
+    padding: 14px;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 4px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .login-btn:hover { opacity: 0.85; }
+  .login-error {
+    margin-top: 16px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    color: #ef4444;
+    display: none;
+  }
+  #app { display: none; }
+
   /* ── Header ── */
   header {
     border-bottom: 1px solid var(--border);
@@ -44,11 +115,30 @@
     text-transform: uppercase;
     color: var(--accent);
   }
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
   #last-update {
     font-family: 'DM Mono', monospace;
     font-size: 0.7rem;
     color: var(--muted);
   }
+  .logout-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.6rem;
+    padding: 4px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: all 0.2s;
+  }
+  .logout-btn:hover { border-color: #ef4444; color: #ef4444; }
 
   /* ── Filtros ── */
   .filters {
@@ -333,9 +423,26 @@
 </head>
 <body>
 
+<!-- ── Pantalla de Login ── -->
+<div id="login-screen">
+  <div class="login-box">
+    <h1>◈ Notion Tracker</h1>
+    <p>Ingresa el código de acceso</p>
+    <input type="password" class="login-input" id="login-pass" placeholder="Código de acceso" autofocus>
+    <button class="login-btn" onclick="doLogin()">Entrar</button>
+    <div class="login-error" id="login-error">Contraseña incorrecta</div>
+  </div>
+</div>
+
+<!-- ── App (oculta hasta login) ── -->
+<div id="app">
+
 <header>
   <h1>◈ Notion Tracker</h1>
-  <span id="last-update">Cargando…</span>
+  <div class="header-right">
+    <span id="last-update">Cargando…</span>
+    <button class="logout-btn" onclick="doLogout()">Salir</button>
+  </div>
 </header>
 
 <!-- Filtros -->
@@ -471,20 +578,91 @@
   </section>
 
 </main>
+</div><!-- /app -->
 
 <script>
-const BASE = window.location.origin;
-const TOKEN = new URLSearchParams(window.location.search).get('token') || '';
+const BASE = 'https://web-production-76fac.up.railway.app';
+let TOKEN = '';
 let currentRange = 'todo';
+let refreshInterval = null;
 
-function authParam(extra) {
-  const p = new URLSearchParams();
-  if (TOKEN) p.set('token', TOKEN);
-  if (extra) Object.entries(extra).forEach(([k,v]) => { if(v) p.set(k,v); });
-  const s = p.toString();
-  return s ? '?' + s : '';
+// ── Auth helpers ──
+function authHeaders() {
+  return { 'Authorization': `Bearer ${TOKEN}` };
 }
 
+function apiFetch(path) {
+  return fetch(`${BASE}${path}`, { headers: authHeaders() });
+}
+
+// ── Login ──
+async function doLogin() {
+  const pass = document.getElementById('login-pass').value.trim();
+  if (!pass) return;
+
+  const errEl = document.getElementById('login-error');
+  errEl.style.display = 'none';
+
+  try {
+    const res = await fetch(`${BASE}/stats`, {
+      headers: { 'Authorization': `Bearer ${pass}` }
+    });
+    if (res.ok) {
+      TOKEN = pass;
+      sessionStorage.setItem('tracker_token', pass);
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      updatePixelCode();
+      loadStats();
+      refreshInterval = setInterval(loadStats, 30000);
+    } else {
+      errEl.textContent = 'Contraseña incorrecta';
+      errEl.style.display = 'block';
+    }
+  } catch(e) {
+    errEl.textContent = 'No se puede conectar al servidor';
+    errEl.style.display = 'block';
+  }
+}
+
+function doLogout() {
+  TOKEN = '';
+  sessionStorage.removeItem('tracker_token');
+  if (refreshInterval) clearInterval(refreshInterval);
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('login-pass').value = '';
+  document.getElementById('login-error').style.display = 'none';
+}
+
+// Auto-login si hay token en sessionStorage
+(async function autoLogin() {
+  const saved = sessionStorage.getItem('tracker_token');
+  if (saved) {
+    try {
+      const res = await fetch(`${BASE}/stats`, {
+        headers: { 'Authorization': `Bearer ${saved}` }
+      });
+      if (res.ok) {
+        TOKEN = saved;
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('app').style.display = 'block';
+        updatePixelCode();
+        loadStats();
+        refreshInterval = setInterval(loadStats, 30000);
+        return;
+      }
+    } catch(e) {}
+    sessionStorage.removeItem('tracker_token');
+  }
+})();
+
+// Enter para hacer login
+document.getElementById('login-pass').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+
+// ── Rango temporal ──
 function setRange(r) {
   currentRange = r;
   document.querySelectorAll('.range-btn').forEach(b => {
@@ -594,14 +772,13 @@ function copyPixel() {
   });
 }
 
-// ── Cargar lista de artículos para el selector ──
+// ── Cargar lista de artículos ──
 async function loadPages() {
   try {
-    const res = await fetch(`${BASE}/pages${authParam()}`);
+    const res = await apiFetch('/pages');
     const pages = await res.json();
     const sel = document.getElementById('page-filter');
     const current = sel.value;
-    // Mantener la opción "Todos" + agregar artículos
     sel.innerHTML = '<option value="">Todos los artículos</option>';
     pages.forEach(p => {
       const opt = document.createElement('option');
@@ -610,8 +787,6 @@ async function loadPages() {
       sel.appendChild(opt);
     });
     sel.value = current;
-
-    // Renderizar barras de artículos
     renderBars('pages-list', pages.map(p => ({ label: p.pagina, n: p.n })));
   } catch(e) {}
 }
@@ -620,11 +795,14 @@ async function loadPages() {
 async function loadStats() {
   try {
     const pagina = document.getElementById('page-filter').value;
-    const params = { pagina, range: currentRange };
+    const params = new URLSearchParams();
+    if (pagina) params.set('pagina', pagina);
+    if (currentRange !== 'todo') params.set('range', currentRange);
+    const qs = params.toString();
 
     const [statsRes, recentRes] = await Promise.all([
-      fetch(`${BASE}/stats${authParam(params)}`),
-      fetch(`${BASE}/recent${authParam({ pagina })}`)
+      apiFetch(`/stats${qs ? '?' + qs : ''}`),
+      apiFetch(`/recent${pagina ? '?pagina=' + encodeURIComponent(pagina) : ''}`)
     ]);
 
     const d = await statsRes.json();
@@ -649,7 +827,7 @@ async function loadStats() {
     // Recientes
     renderRecent(recent);
 
-    // Cargar selector de artículos
+    // Selector de artículos
     await loadPages();
 
     document.getElementById('last-update').textContent =
@@ -658,10 +836,6 @@ async function loadStats() {
     document.getElementById('last-update').textContent = 'Error al cargar datos';
   }
 }
-
-updatePixelCode();
-loadStats();
-setInterval(loadStats, 30000);
 </script>
 </body>
 </html>

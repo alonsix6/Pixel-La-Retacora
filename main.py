@@ -133,6 +133,10 @@ def check_auth(request: Request):
     if not DASHBOARD_TOKEN:
         return
     token = request.query_params.get("token", "")
+    if not token:
+        auth_header = request.headers.get("authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
     if token != DASHBOARD_TOKEN:
         raise HTTPException(status_code=401, detail="No autorizado")
 
