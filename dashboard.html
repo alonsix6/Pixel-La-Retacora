@@ -34,6 +34,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
   }
   header h1 {
     font-family: 'Syne', sans-serif;
@@ -42,16 +44,56 @@
     text-transform: uppercase;
     color: var(--accent);
   }
-  header span {
-    font-family: 'DM Mono', monospace;
-    font-size: 0.75rem;
-    color: var(--muted);
-  }
   #last-update {
     font-family: 'DM Mono', monospace;
     font-size: 0.7rem;
     color: var(--muted);
   }
+
+  /* ── Filtros ── */
+  .filters {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px 40px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .filter-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+  }
+  .filter-select {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    min-width: 180px;
+  }
+  .filter-select:focus { outline: 1px solid var(--accent); }
+  .range-btns { display: flex; gap: 4px; }
+  .range-btn {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    padding: 6px 14px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .range-btn:hover { border-color: var(--accent); color: var(--text); }
+  .range-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
 
   /* ── Layout ── */
   main {
@@ -63,7 +105,7 @@
   /* ── KPIs ── */
   .kpis {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 16px;
     margin-bottom: 40px;
   }
@@ -95,7 +137,7 @@
   }
   .kpi-value {
     font-family: 'Syne', sans-serif;
-    font-size: 2.8rem;
+    font-size: 2.4rem;
     font-weight: 800;
     color: var(--accent);
     line-height: 1;
@@ -167,12 +209,13 @@
     text-align: right;
   }
 
-  /* ── Dispositivos (donut-like) ── */
+  /* ── Dispositivos ── */
   .device-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 12px;
   }
+  @media (max-width: 500px) { .device-grid { grid-template-columns: 1fr; } }
   .device-card {
     background: var(--card);
     border: 1px solid var(--border);
@@ -195,7 +238,7 @@
     margin-top: 4px;
   }
 
-  /* ── Sparkline (visitas por día) ── */
+  /* ── Sparkline ── */
   .chart-wrap {
     background: var(--card);
     border: 1px solid var(--border);
@@ -203,6 +246,36 @@
     padding: 24px;
   }
   #sparkline { width: 100%; height: 120px; }
+
+  /* ── Tabla recientes ── */
+  .recent-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+  }
+  .recent-table th {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 0.6rem;
+  }
+  .recent-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+  .recent-table tr:hover td { background: var(--surface); }
+  .recent-wrap {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow-x: auto;
+  }
 
   /* ── Pixel snippet ── */
   .snippet {
@@ -234,13 +307,27 @@
   }
   .copy-btn:hover { background: var(--accent); color: #000; }
 
-  /* ── Loading ── */
   .loading {
     color: var(--muted);
     font-family: 'DM Mono', monospace;
     font-size: 0.75rem;
     padding: 40px 0;
     text-align: center;
+  }
+
+  .snippet-tip {
+    margin-top: 12px;
+    font-size: 0.72rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .snippet-tip code {
+    background: var(--surface);
+    padding: 2px 6px;
+    border-radius: 3px;
+    color: var(--accent);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem;
   }
 </style>
 </head>
@@ -250,6 +337,21 @@
   <h1>◈ Notion Tracker</h1>
   <span id="last-update">Cargando…</span>
 </header>
+
+<!-- Filtros -->
+<div class="filters">
+  <span class="filter-label">Artículo:</span>
+  <select class="filter-select" id="page-filter" onchange="loadStats()">
+    <option value="">Todos los artículos</option>
+  </select>
+  <span class="filter-label" style="margin-left:8px;">Rango:</span>
+  <div class="range-btns">
+    <button class="range-btn" data-range="hoy" onclick="setRange('hoy')">Hoy</button>
+    <button class="range-btn" data-range="7d" onclick="setRange('7d')">7 días</button>
+    <button class="range-btn" data-range="30d" onclick="setRange('30d')">30 días</button>
+    <button class="range-btn active" data-range="todo" onclick="setRange('todo')">Todo</button>
+  </div>
+</div>
 
 <main>
 
@@ -262,6 +364,10 @@
     <div class="kpi" id="kpi-hoy">
       <div class="kpi-label">Visitas hoy</div>
       <div class="kpi-value" id="val-hoy">—</div>
+    </div>
+    <div class="kpi" id="kpi-unicos">
+      <div class="kpi-label">Visitantes únicos</div>
+      <div class="kpi-value" id="val-unicos">—</div>
     </div>
   </div>
 
@@ -294,22 +400,56 @@
     </section>
   </div>
 
-  <!-- Dispositivos -->
-  <section>
-    <div class="section-header">
-      <span class="section-title">Dispositivos</span>
-      <div class="section-line"></div>
-    </div>
-    <div class="device-grid" id="device-grid"><div class="loading">Cargando…</div></div>
-  </section>
+  <!-- Navegadores y Dispositivos -->
+  <div class="grid-2">
+    <section>
+      <div class="section-header">
+        <span class="section-title">Navegadores</span>
+        <div class="section-line"></div>
+      </div>
+      <div class="bar-list" id="browsers-list"><div class="loading">Cargando…</div></div>
+    </section>
+    <section>
+      <div class="section-header">
+        <span class="section-title">Dispositivos</span>
+        <div class="section-line"></div>
+      </div>
+      <div class="device-grid" id="device-grid"><div class="loading">Cargando…</div></div>
+    </section>
+  </div>
 
   <!-- Páginas -->
   <section>
     <div class="section-header">
-      <span class="section-title">Visitas por página</span>
+      <span class="section-title">Visitas por artículo</span>
       <div class="section-line"></div>
     </div>
     <div class="bar-list" id="pages-list"><div class="loading">Cargando…</div></div>
+  </section>
+
+  <!-- Visitas recientes -->
+  <section>
+    <div class="section-header">
+      <span class="section-title">Visitas recientes</span>
+      <div class="section-line"></div>
+    </div>
+    <div class="recent-wrap">
+      <table class="recent-table" id="recent-table">
+        <thead>
+          <tr>
+            <th>Hora</th>
+            <th>País</th>
+            <th>Ciudad</th>
+            <th>Dispositivo</th>
+            <th>Navegador</th>
+            <th>Artículo</th>
+          </tr>
+        </thead>
+        <tbody id="recent-body">
+          <tr><td colspan="6" class="loading">Cargando…</td></tr>
+        </tbody>
+      </table>
+    </div>
   </section>
 
   <!-- Snippet -->
@@ -322,15 +462,36 @@
       <button class="copy-btn" onclick="copyPixel()">Copiar</button>
       <pre id="pixel-code">Cargando URL…</pre>
     </div>
-    <p style="margin-top:12px; font-size:0.72rem; color:var(--muted);">
-      Pega este enlace de imagen en cualquier bloque de Notion como imagen embebida (<code>/image</code> → pegar URL).
-    </p>
+    <div class="snippet-tip">
+      <strong>Instrucciones:</strong> Pega este enlace en cualquier bloque de Notion como imagen embebida (<code>/image</code> → Enlace → pegar URL).<br>
+      Cambia <code>mi-articulo</code> por un nombre único para cada artículo. Ejemplos:<br>
+      <code>?pagina=guia-seo</code> · <code>?pagina=tutorial-python</code> · <code>?pagina=landing-page</code><br>
+      Cada artículo debe tener un nombre diferente para separar las visitas en el dashboard.
+    </div>
   </section>
 
 </main>
 
 <script>
 const BASE = window.location.origin;
+const TOKEN = new URLSearchParams(window.location.search).get('token') || '';
+let currentRange = 'todo';
+
+function authParam(extra) {
+  const p = new URLSearchParams();
+  if (TOKEN) p.set('token', TOKEN);
+  if (extra) Object.entries(extra).forEach(([k,v]) => { if(v) p.set(k,v); });
+  const s = p.toString();
+  return s ? '?' + s : '';
+}
+
+function setRange(r) {
+  currentRange = r;
+  document.querySelectorAll('.range-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.range === r);
+  });
+  loadStats();
+}
 
 // ── Renderizar barras ──
 function renderBars(containerId, items, colorVar='--accent') {
@@ -339,7 +500,7 @@ function renderBars(containerId, items, colorVar='--accent') {
   const max = Math.max(...items.map(i => i.n));
   el.innerHTML = items.map(item => `
     <div class="bar-item">
-      <span class="bar-label" title="${item.pais||item.referrer||item.dispositivo}">${item.pais||item.referrer||item.dispositivo||'—'}</span>
+      <span class="bar-label" title="${item.label}">${item.label || '—'}</span>
       <div class="bar-track">
         <div class="bar-fill" style="background:var(${colorVar})" data-w="${(item.n/max*100).toFixed(1)}%"></div>
       </div>
@@ -354,7 +515,7 @@ function renderBars(containerId, items, colorVar='--accent') {
 // ── Sparkline ──
 function renderSparkline(data) {
   const svg = document.getElementById('sparkline');
-  if (!data.length) return;
+  if (!data.length) { svg.innerHTML = ''; return; }
   const sorted = [...data].reverse();
   const vals = sorted.map(d => d.n);
   const max = Math.max(...vals, 1);
@@ -398,9 +559,30 @@ function renderDevices(items, total) {
   `).join('');
 }
 
+// ── Visitas recientes ──
+function renderRecent(rows) {
+  const tbody = document.getElementById('recent-body');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="loading">Sin visitas aún</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => {
+    const t = new Date(r.timestamp + 'Z');
+    const hora = t.toLocaleString('es-PE', { timeZone: 'America/Lima', hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' });
+    return `<tr>
+      <td>${hora}</td>
+      <td>${r.pais}</td>
+      <td>${r.ciudad}</td>
+      <td>${r.dispositivo}</td>
+      <td>${r.navegador}</td>
+      <td>${r.pagina}</td>
+    </tr>`;
+  }).join('');
+}
+
 // ── Pixel snippet ──
 function updatePixelCode() {
-  const url = `${BASE}/pixel?pagina=mi-pagina`;
+  const url = `${BASE}/pixel?pagina=mi-articulo`;
   document.getElementById('pixel-code').textContent = url;
 }
 function copyPixel() {
@@ -412,28 +594,63 @@ function copyPixel() {
   });
 }
 
-// ── Fetch stats ──
+// ── Cargar lista de artículos para el selector ──
+async function loadPages() {
+  try {
+    const res = await fetch(`${BASE}/pages${authParam()}`);
+    const pages = await res.json();
+    const sel = document.getElementById('page-filter');
+    const current = sel.value;
+    // Mantener la opción "Todos" + agregar artículos
+    sel.innerHTML = '<option value="">Todos los artículos</option>';
+    pages.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.pagina;
+      opt.textContent = `${p.pagina} (${p.n})`;
+      sel.appendChild(opt);
+    });
+    sel.value = current;
+
+    // Renderizar barras de artículos
+    renderBars('pages-list', pages.map(p => ({ label: p.pagina, n: p.n })));
+  } catch(e) {}
+}
+
+// ── Fetch stats principal ──
 async function loadStats() {
   try {
-    const res = await fetch(`${BASE}/stats`);
-    const d = await res.json();
+    const pagina = document.getElementById('page-filter').value;
+    const params = { pagina, range: currentRange };
 
+    const [statsRes, recentRes] = await Promise.all([
+      fetch(`${BASE}/stats${authParam(params)}`),
+      fetch(`${BASE}/recent${authParam({ pagina })}`)
+    ]);
+
+    const d = await statsRes.json();
+    const recent = await recentRes.json();
+
+    // KPIs
     document.getElementById('val-total').textContent = d.total.toLocaleString();
     document.getElementById('val-hoy').textContent = d.hoy.toLocaleString();
+    document.getElementById('val-unicos').textContent = d.unicos.toLocaleString();
 
     document.querySelectorAll('.kpi').forEach(k => {
       setTimeout(() => k.classList.add('loaded'), 100);
     });
 
-    renderBars('paises-list', d.paises.map(p => ({...p, pais: p.pais})));
-    renderBars('referrers-list', d.referrers.map(r => ({...r, pais: r.referrer})), '--accent2');
+    // Charts
+    renderBars('paises-list', d.paises.map(p => ({ label: p.pais, n: p.n })));
+    renderBars('referrers-list', d.referrers.map(r => ({ label: r.referrer, n: r.n })), '--accent2');
+    renderBars('browsers-list', d.navegadores.map(b => ({ label: b.navegador, n: b.n })), '--accent2');
     renderDevices(d.dispositivos, d.total);
     renderSparkline(d.por_dia);
 
-    // Páginas
-    const pRes = await fetch(`${BASE}/pages`);
-    const pages = await pRes.json();
-    renderBars('pages-list', pages.map(p => ({...p, pais: p.pagina})), '--accent');
+    // Recientes
+    renderRecent(recent);
+
+    // Cargar selector de artículos
+    await loadPages();
 
     document.getElementById('last-update').textContent =
       'Actualizado: ' + new Date().toLocaleTimeString('es-PE');
@@ -444,7 +661,7 @@ async function loadStats() {
 
 updatePixelCode();
 loadStats();
-setInterval(loadStats, 30000); // refresca cada 30s
+setInterval(loadStats, 30000);
 </script>
 </body>
 </html>
