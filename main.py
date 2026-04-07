@@ -48,9 +48,15 @@ def init_db():
                 referrer   TEXT,
                 dispositivo TEXT,
                 navegador  TEXT,
-                pagina     TEXT
+                pagina     TEXT,
+                user_agent TEXT DEFAULT ''
             )
         """)
+        # Migration: agregar user_agent si la tabla ya existía sin ella
+        try:
+            conn.execute("ALTER TABLE visitas ADD COLUMN user_agent TEXT DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass  # Columna ya existe
         conn.commit()
     finally:
         conn.close()
@@ -95,30 +101,66 @@ def parse_browser(ua: str) -> str:
     return "Otro"
 
 # ──────────────────────────────────────────────
-# Cache de geolocalización (evita exceder 45 req/min de ip-api.com)
+# Detección de bots (filtra tráfico de Notion, crawlers, etc.)
 # ──────────────────────────────────────────────
-geo_cache: dict[str, tuple[str, str]] = {}
+BOT_PATTERNS = [
+    'bot', 'crawler', 'spider', 'notion', 'preview', 'fetch',
+    'slurp', 'mediapartners', 'headless', 'phantomjs', 'lighthouse',
+    'pingdom', 'uptimerobot', 'python-requests', 'curl', 'wget',
+    'go-http-client', 'java/', 'libwww', 'httpx',
+]
+
+def is_bot(ua: str) -> bool:
+    """Detecta bots, crawlers y requests automatizados por User-Agent."""
+    if not ua:
+        return True  # Sin User-Agent = probablemente bot
+    ua_lower = ua.lower()
+    return any(p in ua_lower for p in BOT_PATTERNS)
+
+# ──────────────────────────────────────────────
+# Cache de geolocalización con TTL
+# ──────────────────────────────────────────────
+geo_cache: dict[str, tuple[tuple[str, str], float]] = {}
+GEO_TTL_OK = 86400      # 24 horas para resultados exitosos
+GEO_TTL_ERROR = 3600     # 1 hora para errores (reintenta después)
 
 async def get_geo(ip: str):
     if ip in geo_cache:
-        return geo_cache[ip]
+        result, cached_at = geo_cache[ip]
+        ttl = GEO_TTL_OK if result[0] != "Desconocido" else GEO_TTL_ERROR
+        if time.time() - cached_at < ttl:
+            return result
+        del geo_cache[ip]
     try:
         async with httpx.AsyncClient(timeout=3) as client:
             r = await client.get(f"http://ip-api.com/json/{ip}?fields=country,city")
             data = r.json()
             result = (data.get("country", "Desconocido"), data.get("city", "Desconocido"))
-            geo_cache[ip] = result
+            geo_cache[ip] = (result, time.time())
             return result
     except Exception:
-        return "Desconocido", "Desconocido"
+        error_result = ("Desconocido", "Desconocido")
+        geo_cache[ip] = (error_result, time.time())
+        return error_result
 
 # ──────────────────────────────────────────────
-# Rate limiting (20 req/min por IP)
+# Rate limiting (20 req/min por IP) con limpieza periódica
 # ──────────────────────────────────────────────
 rate_limit_store: dict[str, list[float]] = defaultdict(list)
+_rate_limit_counter = 0
 
 def is_rate_limited(ip: str, max_hits: int = 20, window: int = 60) -> bool:
+    global _rate_limit_counter
     now = time.time()
+
+    # Limpieza periódica cada 500 requests
+    _rate_limit_counter += 1
+    if _rate_limit_counter >= 500:
+        _rate_limit_counter = 0
+        stale = [k for k, v in rate_limit_store.items() if not v or now - v[-1] > window]
+        for k in stale:
+            del rate_limit_store[k]
+
     rate_limit_store[ip] = [t for t in rate_limit_store[ip] if now - t < window]
     if len(rate_limit_store[ip]) >= max_hits:
         return True
@@ -168,15 +210,15 @@ async def pixel(request: Request, pagina: str = "principal"):
     ua = request.headers.get("user-agent", "")
     referrer = request.headers.get("referer", "Directo")
 
-    # Solo registra si no está rate-limited (pero siempre retorna el GIF)
-    if not is_rate_limited(ip):
+    # Filtra bots/crawlers/Notion y rate-limited: retorna GIF pero no registra
+    if not is_bot(ua) and not is_rate_limited(ip):
         pais, ciudad = await get_geo(ip)
         conn = get_db()
         try:
             conn.execute(
-                "INSERT INTO visitas (timestamp,ip,pais,ciudad,referrer,dispositivo,navegador,pagina) VALUES (?,?,?,?,?,?,?,?)",
+                "INSERT INTO visitas (timestamp,ip,pais,ciudad,referrer,dispositivo,navegador,pagina,user_agent) VALUES (?,?,?,?,?,?,?,?,?)",
                 (datetime.utcnow().isoformat(), ip, pais, ciudad, referrer,
-                 parse_device(ua), parse_browser(ua), pagina)
+                 parse_device(ua), parse_browser(ua), pagina, ua)
             )
             conn.commit()
         finally:
@@ -216,7 +258,8 @@ def stats(request: Request, pagina: str = "", range: str = "todo"):
             f"SELECT COUNT(*) FROM visitas WHERE DATE(timestamp)=DATE('now') {'AND pagina = ?' if pagina else ''}",
             [pagina] if pagina else [],
         ).fetchone()[0]
-        unicos = q("SELECT COUNT(DISTINCT ip) FROM visitas {WHERE}").fetchone()[0]
+        # Visitantes únicos: IP + navegador + dispositivo (mejor que solo IP para redes compartidas)
+        unicos = q("SELECT COUNT(DISTINCT ip || '|' || navegador || '|' || dispositivo) FROM visitas {WHERE}").fetchone()[0]
 
         paises = q(
             "SELECT pais, COUNT(*) as n FROM visitas {WHERE} GROUP BY pais ORDER BY n DESC LIMIT 8"
