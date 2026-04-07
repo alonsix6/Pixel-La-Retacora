@@ -1,5 +1,9 @@
 [build]
   publish = "."
+  command = "#"
+
+[build.environment]
+  NETLIFY_SKIP_DEPENDENCY_INSTALLATION = "true"
 
 [[redirects]]
   from = "/*"
