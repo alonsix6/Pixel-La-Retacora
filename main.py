@@ -329,6 +329,22 @@ def recent(request: Request, pagina: str = ""):
     return [dict(r) for r in rows]
 
 
+@app.delete("/clear")
+def clear(request: Request, pagina: str = ""):
+    """Elimina historial de visitas de un artículo específico o de todo."""
+    check_auth(request)
+    if not pagina:
+        raise HTTPException(status_code=400, detail="Debes especificar ?pagina= para eliminar")
+    conn = get_db()
+    try:
+        conn.execute("DELETE FROM visitas WHERE pagina = ?", (pagina,))
+        conn.commit()
+        deleted = conn.total_changes
+    finally:
+        conn.close()
+    return {"deleted": deleted, "pagina": pagina}
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request):
     """Sirve el dashboard HTML."""
