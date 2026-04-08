@@ -1,8 +1,7 @@
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import Response, HTMLResponse
+from fastapi.responses import Response, HTMLResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 import sqlite3
-import base64
 import httpx
 from datetime import datetime, timedelta
 from collections import defaultdict
@@ -66,9 +65,8 @@ init_db()
 # ──────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────
-PIXEL_GIF = base64.b64decode(
-    "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
-)
+# SVG transparente 1x1 (sin fondo blanco — invisible en dark mode)
+PIXEL_SVG = b'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>'
 
 def get_real_ip(request: Request) -> str:
     """Obtiene la IP real del visitante detrás de proxies."""
@@ -210,7 +208,7 @@ async def pixel(request: Request, pagina: str = "principal"):
     ua = request.headers.get("user-agent", "")
     referrer = request.headers.get("referer", "Directo")
 
-    # Filtra bots/crawlers/Notion y rate-limited: retorna GIF pero no registra
+    # Filtra bots/crawlers/Notion y rate-limited: retorna SVG pero no registra
     if not is_bot(ua) and not is_rate_limited(ip):
         pais, ciudad = await get_geo(ip)
         conn = get_db()
@@ -225,14 +223,37 @@ async def pixel(request: Request, pagina: str = "principal"):
             conn.close()
 
     return Response(
-        content=PIXEL_GIF,
-        media_type="image/gif",
+        content=PIXEL_SVG,
+        media_type="image/svg+xml",
         headers={
             "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
             "Pragma": "no-cache",
             "Expires": "0",
         },
     )
+
+
+@app.get("/t")
+async def track_redirect(request: Request, pagina: str = "principal"):
+    """Tracking alternativo via redirect — para usar como link en vez de imagen."""
+    ip = get_real_ip(request)
+    ua = request.headers.get("user-agent", "")
+    referrer = request.headers.get("referer", "Directo")
+
+    if not is_bot(ua) and not is_rate_limited(ip):
+        pais, ciudad = await get_geo(ip)
+        conn = get_db()
+        try:
+            conn.execute(
+                "INSERT INTO visitas (timestamp,ip,pais,ciudad,referrer,dispositivo,navegador,pagina,user_agent) VALUES (?,?,?,?,?,?,?,?,?)",
+                (datetime.utcnow().isoformat(), ip, pais, ciudad, referrer,
+                 parse_device(ua), parse_browser(ua), pagina, ua)
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    return RedirectResponse(url="https://notion.so", status_code=302)
 
 
 @app.get("/stats")
