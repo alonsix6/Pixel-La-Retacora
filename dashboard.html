@@ -718,8 +718,22 @@ function renderSparkline(data) {
   const vals = sorted.map(d => d.n);
   const max = Math.max(...vals, 1);
   const W = 600, H = 120, pad = 30;
+
+  // Con 1 solo punto, mostrar un punto + barra vertical
+  if (vals.length === 1) {
+    const x = W / 2;
+    const y = H - pad - (vals[0] / max) * (H - pad*2);
+    svg.innerHTML = `
+      <line x1="${x}" y1="${H-pad}" x2="${x}" y2="${y}" stroke="#c8f135" stroke-width="2" stroke-opacity="0.3"/>
+      <circle cx="${x}" cy="${y}" r="4" fill="#c8f135"/>
+      <text x="${x}" y="${y - 12}" text-anchor="middle" font-family="Syne, sans-serif" font-size="14" font-weight="800" fill="#c8f135">${vals[0]}</text>
+      <text x="${x}" y="${H-6}" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#444">${sorted[0].dia.slice(5)}</text>
+    `;
+    return;
+  }
+
   const pts = vals.map((v, i) => {
-    const x = pad + i * ((W - pad*2) / (vals.length - 1 || 1));
+    const x = pad + i * ((W - pad*2) / (vals.length - 1));
     const y = H - pad - (v / max) * (H - pad*2);
     return `${x},${y}`;
   });
@@ -737,7 +751,7 @@ function renderSparkline(data) {
     <path d="${area}" fill="url(#grad)"/>
     <path d="${line}" fill="none" stroke="#c8f135" stroke-width="2"/>
     ${sorted.map((d,i) => {
-      const x = pad + i * ((W - pad*2) / (vals.length - 1 || 1));
+      const x = pad + i * ((W - pad*2) / (vals.length - 1));
       return `<text x="${x}" y="${H-6}" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#444">${d.dia.slice(5)}</text>`;
     }).join('')}
   `;
